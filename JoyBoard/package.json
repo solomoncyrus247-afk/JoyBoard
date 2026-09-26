@@ -1,0 +1,20 @@
+{
+  "name": "joyboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "JoyBoard - WhatsApp-style real-time chat app for Render",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.16.3",
+    "socket.io": "^4.8.1"
+  }
+}

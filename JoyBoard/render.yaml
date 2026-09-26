@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: joyboard
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: joyboard-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+
+databases:
+  - name: joyboard-db
+    databaseName: joyboard
+    user: joyboard
+    plan: free
