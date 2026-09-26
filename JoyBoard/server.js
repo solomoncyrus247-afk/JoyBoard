@@ -154,7 +154,41 @@ app.get("/api/me", auth, async (req, res) => {
   if (!result.rowCount) return res.status(404).json({ error: "User not found." });
   res.json({ user: result.rows[0] });
 });
+app.patch("/api/profile", auth, async (req, res) => {
+  try {
+    const name = String(req.body.name || "").trim();
+    const avatarUrl = String(req.body.avatar_url || "");
 
+    if (name.length < 2 || name.length > 80) {
+      return res.status(400).json({ error: "Name must be 2–80 characters." });
+    }
+
+    if (avatarUrl && !avatarUrl.startsWith("data:image/")) {
+      return res.status(400).json({ error: "Invalid profile picture." });
+    }
+
+    if (avatarUrl.length > 1500000) {
+      return res.status(400).json({ error: "Profile picture is too large." });
+    }
+
+    const result = await pool.query(
+      `UPDATE users
+       SET name = $1, avatar_url = $2
+       WHERE id = $3
+       RETURNING id, name, email, avatar_url, last_seen`,
+      [name, avatarUrl, req.user.id]
+    );
+
+    if (!result.rowCount) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    res.json({ user: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not update profile." });
+  }
+});
 app.get("/api/users", auth, async (req, res) => {
   const q = String(req.query.q || "").trim();
   const result = await pool.query(
