@@ -8,6 +8,9 @@ let typingTimer = null;
 
 let currentView = "friends";
 
+/* Keep track of online users */
+const onlineUsers = new Set();
+
 /* =========================
    HELPERS
 ========================= */
@@ -33,12 +36,28 @@ function timeText(date) {
   });
 }
 
+function dateText(date) {
+  if (!date) return "Unknown";
+
+  return new Date(date).toLocaleDateString([], {
+    year: "numeric",
+    month: "long",
+    day: "numeric"
+  });
+}
+
+function isOnline(userId) {
+  return onlineUsers.has(Number(userId));
+}
+
 /* =========================
    AVATAR
 ========================= */
 
 function avatarHtml(user, className = "avatar") {
-  const letter = escapeHtml(initials(user?.name));
+  const letter = escapeHtml(
+    initials(user?.name)
+  );
 
   if (user?.avatar_url) {
     return `
@@ -71,8 +90,398 @@ function setMyAvatar() {
       >
     `;
   } else {
-    $("myAvatar").textContent = initials(me.name);
+    $("myAvatar").textContent =
+      initials(me.name);
   }
+}
+
+/* =========================
+   PROFILE MODAL
+========================= */
+
+function createProfileModal() {
+  if ($("profileModal")) {
+    return;
+  }
+
+  const modal =
+    document.createElement("div");
+
+  modal.id = "profileModal";
+
+  modal.innerHTML = `
+    <div class="profile-modal-overlay">
+
+      <div class="profile-modal-card">
+
+        <button
+          type="button"
+          class="profile-modal-close"
+          id="profileModalClose"
+        >
+          ×
+        </button>
+
+        <div class="profile-modal-cover"></div>
+
+        <div class="profile-modal-photo" id="profileModalPhoto">
+          J
+        </div>
+
+        <div class="profile-modal-content">
+
+          <h2 id="profileModalName">
+            User
+          </h2>
+
+          <div
+            class="profile-online-status"
+            id="profileModalStatus"
+          >
+            Offline
+          </div>
+
+          <p
+            class="profile-modal-email"
+            id="profileModalEmail"
+          >
+            email@example.com
+          </p>
+
+          <div class="profile-information">
+
+            <div class="profile-info-box">
+              <strong id="profileModalFriends">
+                0
+              </strong>
+
+              <span>
+                Friends
+              </span>
+            </div>
+
+            <div class="profile-info-box">
+              <strong id="profileModalJoined">
+                -
+              </strong>
+
+              <span>
+                Joined
+              </span>
+            </div>
+
+          </div>
+
+          <div
+            class="profile-modal-actions"
+            id="profileModalActions"
+          ></div>
+
+        </div>
+
+      </div>
+
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  $("profileModalClose").onclick =
+    closeProfileModal;
+
+  const overlay =
+    modal.querySelector(
+      ".profile-modal-overlay"
+    );
+
+  overlay.onclick = (event) => {
+    if (event.target === overlay) {
+      closeProfileModal();
+    }
+  };
+}
+
+function closeProfileModal() {
+  const modal =
+    $("profileModal");
+
+  if (modal) {
+    modal.classList.remove("show");
+  }
+}
+
+function showProfileModal(user) {
+  createProfileModal();
+
+  $("profileModalName").textContent =
+    user.name;
+
+  $("profileModalEmail").textContent =
+    user.email || "";
+
+  $("profileModalFriends").textContent =
+    Number(user.friends_count || 0);
+
+  $("profileModalJoined").textContent =
+    dateText(user.created_at);
+
+  const online =
+    typeof user.online === "boolean"
+      ? user.online
+      : isOnline(user.id);
+
+  $("profileModalStatus").innerHTML =
+    online
+      ? `<span class="profile-online-dot"></span> Online`
+      : `<span class="profile-offline-dot"></span> Offline`;
+
+  const photo =
+    $("profileModalPhoto");
+
+  if (user.avatar_url) {
+    photo.innerHTML = `
+      <img
+        src="${escapeHtml(user.avatar_url)}"
+        alt="Profile picture"
+      >
+    `;
+  } else {
+    photo.textContent =
+      initials(user.name);
+  }
+
+  const actions =
+    $("profileModalActions");
+
+  actions.innerHTML = "";
+
+  if (
+    me &&
+    Number(user.id) === Number(me.id)
+  ) {
+
+    const editButton =
+      document.createElement("button");
+
+    editButton.className =
+      "profile-main-button";
+
+    editButton.textContent =
+      "Edit Profile";
+
+    editButton.onclick = () => {
+      closeProfileModal();
+
+      $("editProfileButton").click();
+    };
+
+    actions.appendChild(
+      editButton
+    );
+
+  } else {
+
+    const status =
+      user.friendship_status || "none";
+
+    if (status === "friend") {
+
+      const messageButton =
+        document.createElement("button");
+
+      messageButton.className =
+        "profile-main-button";
+
+      messageButton.textContent =
+        "Message";
+
+      messageButton.onclick = () => {
+        closeProfileModal();
+        openChat(user);
+      };
+
+      actions.appendChild(
+        messageButton
+      );
+
+      const removeButton =
+        document.createElement("button");
+
+      removeButton.className =
+        "profile-remove-button";
+
+      removeButton.textContent =
+        "Remove Friend";
+
+      removeButton.onclick = async () => {
+
+        const confirmed =
+          window.confirm(
+            `Remove ${user.name} from your friends?`
+          );
+
+        if (!confirmed) {
+          return;
+        }
+
+        try {
+
+          await api(
+            `/api/friends/${user.id}`,
+            {
+              method: "DELETE"
+            }
+          );
+
+          closeProfileModal();
+
+          await loadFriends();
+
+          if (currentView === "people") {
+            await loadPeople(
+              $("searchInput").value.trim()
+            );
+          }
+
+        } catch (error) {
+
+          alert(error.message);
+        }
+      };
+
+      actions.appendChild(
+        removeButton
+      );
+
+    } else if (
+      status === "request_sent"
+    ) {
+
+      const cancelButton =
+        document.createElement("button");
+
+      cancelButton.className =
+        "profile-secondary-button";
+
+      cancelButton.textContent =
+        "Cancel Request";
+
+      cancelButton.onclick = async () => {
+
+        try {
+
+          await api(
+            `/api/friends/request/${user.id}`,
+            {
+              method: "DELETE"
+            }
+          );
+
+          closeProfileModal();
+
+          await loadPeople(
+            $("searchInput").value.trim()
+          );
+
+        } catch (error) {
+
+          alert(error.message);
+        }
+      };
+
+      actions.appendChild(
+        cancelButton
+      );
+
+    } else if (
+      status === "request_received"
+    ) {
+
+      const requestsButton =
+        document.createElement("button");
+
+      requestsButton.className =
+        "profile-main-button";
+
+      requestsButton.textContent =
+        "View Friend Request";
+
+      requestsButton.onclick = () => {
+
+        closeProfileModal();
+
+        currentView =
+          "requests";
+
+        setActiveMenu(
+          "requestsButton"
+        );
+
+        $("searchInput").value = "";
+
+        loadFriendRequests();
+      };
+
+      actions.appendChild(
+        requestsButton
+      );
+
+    } else {
+
+      const addButton =
+        document.createElement("button");
+
+      addButton.className =
+        "profile-main-button";
+
+      addButton.textContent =
+        "+ Add Friend";
+
+      addButton.onclick = async () => {
+
+        addButton.disabled = true;
+
+        addButton.textContent =
+          "Sending...";
+
+        try {
+
+          await api(
+            `/api/friends/request/${user.id}`,
+            {
+              method: "POST"
+            }
+          );
+
+          user.friendship_status =
+            "request_sent";
+
+          addButton.textContent =
+            "Request Sent";
+
+          addButton.className =
+            "profile-secondary-button";
+
+        } catch (error) {
+
+          addButton.disabled = false;
+
+          addButton.textContent =
+            "+ Add Friend";
+
+          alert(error.message);
+        }
+      };
+
+      actions.appendChild(
+        addButton
+      );
+    }
+  }
+
+  $("profileModal").classList.add(
+    "show"
+  );
 }
 
 /* =========================
@@ -80,29 +489,55 @@ function setMyAvatar() {
 ========================= */
 
 function showAuth(mode = "login") {
-  $("authScreen").classList.remove("hidden");
-  $("chatApp").classList.add("hidden");
+  $("authScreen").classList.remove(
+    "hidden"
+  );
 
-  const register = mode === "register";
+  $("chatApp").classList.add(
+    "hidden"
+  );
 
-  $("loginTab").classList.toggle("active", !register);
-  $("registerTab").classList.toggle("active", register);
+  const register =
+    mode === "register";
 
-  $("nameGroup").classList.toggle("hidden", !register);
-  $("name").required = register;
+  $("loginTab").classList.toggle(
+    "active",
+    !register
+  );
 
-  $("authButton").textContent = register
-    ? "Create account"
-    : "Login";
+  $("registerTab").classList.toggle(
+    "active",
+    register
+  );
 
-  $("authMessage").textContent = "";
+  $("nameGroup").classList.toggle(
+    "hidden",
+    !register
+  );
+
+  $("name").required =
+    register;
+
+  $("authButton").textContent =
+    register
+      ? "Create account"
+      : "Login";
+
+  $("authMessage").textContent =
+    "";
 }
 
 function showChatApp() {
-  $("authScreen").classList.add("hidden");
-  $("chatApp").classList.remove("hidden");
+  $("authScreen").classList.add(
+    "hidden"
+  );
 
-  $("myName").textContent = me.name;
+  $("chatApp").classList.remove(
+    "hidden"
+  );
+
+  $("myName").textContent =
+    me.name;
 
   setMyAvatar();
 }
@@ -111,26 +546,36 @@ function showChatApp() {
    API
 ========================= */
 
-async function api(url, options = {}) {
+async function api(
+  url,
+  options = {}
+) {
   const headers = {
-    "Content-Type": "application/json",
+    "Content-Type":
+      "application/json",
     ...(options.headers || {})
   };
 
   if (token) {
-    headers.Authorization = `Bearer ${token}`;
+    headers.Authorization =
+      `Bearer ${token}`;
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers
-  });
+  const response =
+    await fetch(url, {
+      ...options,
+      headers
+    });
 
-  const data = await response.json().catch(() => ({}));
+  const data =
+    await response
+      .json()
+      .catch(() => ({}));
 
   if (!response.ok) {
     throw new Error(
-      data.error || "Something went wrong."
+      data.error ||
+      "Something went wrong."
     );
   }
 
@@ -142,12 +587,16 @@ async function api(url, options = {}) {
 ========================= */
 
 async function boot() {
+  createProfileModal();
+
   if (!token) {
     return showAuth();
   }
 
   try {
-    const data = await api("/api/me");
+
+    const data =
+      await api("/api/me");
 
     me = data.user;
 
@@ -155,11 +604,15 @@ async function boot() {
 
     connectSocket();
 
-    loadFriends();
-    loadFriendRequests();
+    await loadFriends();
 
-  } catch {
-    localStorage.removeItem("joyboard_token");
+    await loadFriendRequests();
+
+  } catch (error) {
+
+    localStorage.removeItem(
+      "joyboard_token"
+    );
 
     token = null;
 
@@ -190,26 +643,33 @@ $("authForm").addEventListener(
     event.preventDefault();
 
     const register =
-      !$("nameGroup").classList.contains("hidden");
+      !$("nameGroup")
+        .classList
+        .contains("hidden");
 
     $("authMessage").textContent =
-      "Please wait…";
+      "Please wait...";
 
     try {
 
-      const data = await api(
-        register
-          ? "/api/register"
-          : "/api/login",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            name: $("name").value,
-            email: $("email").value,
-            password: $("password").value
-          })
-        }
-      );
+      const data =
+        await api(
+          register
+            ? "/api/register"
+            : "/api/login",
+          {
+            method: "POST",
+
+            body: JSON.stringify({
+              name:
+                $("name").value,
+              email:
+                $("email").value,
+              password:
+                $("password").value
+            })
+          }
+        );
 
       token = data.token;
 
@@ -226,8 +686,9 @@ $("authForm").addEventListener(
 
       connectSocket();
 
-      loadFriends();
-      loadFriendRequests();
+      await loadFriends();
+
+      await loadFriendRequests();
 
     } catch (error) {
 
@@ -253,24 +714,62 @@ function connectSocket() {
     }
   });
 
+  /* CONNECT */
+
+  socket.on("connect", () => {
+
+    if (me) {
+      onlineUsers.add(
+        Number(me.id)
+      );
+    }
+
+    updateCurrentProfileStatus();
+  });
+
   /* PRESENCE */
 
   socket.on(
     "presence",
     ({ userId, online }) => {
 
+      const id =
+        Number(userId);
+
+      if (online) {
+        onlineUsers.add(id);
+      } else {
+        onlineUsers.delete(id);
+      }
+
       if (
         activeUser &&
-        Number(activeUser.id) === Number(userId)
+        Number(activeUser.id) === id
       ) {
+
+        activeUser.online =
+          online;
+
         setStatus(online);
       }
+
+      updateCurrentProfileStatus();
 
       if (
         currentView === "friends" ||
         currentView === "chats"
       ) {
         loadFriends();
+      }
+
+      if (
+        currentView === "people"
+      ) {
+        loadPeople(
+          $("searchInput")
+            .value
+            .trim()
+        );
       }
     }
   );
@@ -283,7 +782,8 @@ function connectSocket() {
 
       if (
         activeUser &&
-        Number(activeUser.id) === Number(from)
+        Number(activeUser.id) ===
+        Number(from)
       ) {
 
         $("typingIndicator")
@@ -334,18 +834,7 @@ function connectSocket() {
         Number(activeUser.id)
       ) {
 
-        if (
-          ![
-            ...$("messages")
-              .querySelectorAll("[data-id]")
-          ].some(
-            (el) =>
-              el.dataset.id == message.id
-          )
-        ) {
-
-          addMessage(message);
-        }
+        addMessage(message);
       }
 
       loadFriends();
@@ -360,7 +849,8 @@ function connectSocket() {
 
       if (
         activeUser &&
-        Number(activeUser.id) === Number(by)
+        Number(activeUser.id) ===
+        Number(by)
       ) {
 
         [
@@ -385,7 +875,10 @@ function connectSocket() {
 
       loadFriendRequests();
 
-      if (currentView === "requests") {
+      if (
+        currentView ===
+        "requests"
+      ) {
         loadFriendRequests();
       }
 
@@ -403,8 +896,15 @@ function connectSocket() {
 
       loadFriends();
 
-      if (currentView === "friends") {
-        loadFriends();
+      if (
+        currentView ===
+        "people"
+      ) {
+        loadPeople(
+          $("searchInput")
+            .value
+            .trim()
+        );
       }
 
       alert(
@@ -412,7 +912,49 @@ function connectSocket() {
       );
     }
   );
+
+  /* DISCONNECT */
+
+  socket.on(
+    "disconnect",
+    () => {
+      if (me) {
+        onlineUsers.delete(
+          Number(me.id)
+        );
+      }
+
+      updateCurrentProfileStatus();
+    }
+  );
 }
+
+/* =========================
+   UPDATE PROFILE STATUS
+========================= */
+
+function updateCurrentProfileStatus() {
+
+  if (
+    !$("profileModal") ||
+    !$("profileModal").classList.contains("show") ||
+    !activeProfileUser
+  ) {
+    return;
+  }
+
+  const online =
+    isOnline(
+      activeProfileUser.id
+    );
+
+  $("profileModalStatus").innerHTML =
+    online
+      ? `<span class="profile-online-dot"></span> Online`
+      : `<span class="profile-offline-dot"></span> Offline`;
+}
+
+let activeProfileUser = null;
 
 /* =========================================================
    VIEW MANAGEMENT
@@ -429,11 +971,14 @@ function setActiveMenu(buttonId) {
 
   buttons.forEach((id) => {
 
-    $(id)?.classList.remove("active");
-
+    $(id)?.classList.remove(
+      "active"
+    );
   });
 
-  $(buttonId)?.classList.add("active");
+  $(buttonId)?.classList.add(
+    "active"
+  );
 }
 
 /* =========================
@@ -444,7 +989,9 @@ async function loadChats() {
 
   currentView = "chats";
 
-  setActiveMenu("chatsButton");
+  setActiveMenu(
+    "chatsButton"
+  );
 
   $("searchInput").value = "";
 
@@ -453,11 +1000,14 @@ async function loadChats() {
 
   try {
 
-    const data = await api(
-      "/api/conversations"
-    );
+    const data =
+      await api(
+        "/api/conversations"
+      );
 
-    renderChats(data.conversations);
+    renderChats(
+      data.conversations
+    );
 
   } catch (error) {
 
@@ -495,7 +1045,9 @@ function renderChats(chats) {
   chats.forEach((user) => {
 
     const button =
-      document.createElement("button");
+      document.createElement(
+        "button"
+      );
 
     button.className =
       "user-item";
@@ -511,7 +1063,8 @@ function renderChats(chats) {
 
         <small>
           ${escapeHtml(
-            user.last_message || "Start a conversation"
+            user.last_message ||
+            "Start a conversation"
           )}
         </small>
 
@@ -528,9 +1081,11 @@ function renderChats(chats) {
       }
     `;
 
-    button.onclick = () => openChat(user);
+    button.onclick = () =>
+      openChat(user);
 
-    $("userList").appendChild(button);
+    $("userList")
+      .appendChild(button);
   });
 }
 
@@ -542,19 +1097,26 @@ async function loadFriends() {
 
   try {
 
-    const data = await api(
-      "/api/friends"
-    );
+    const data =
+      await api(
+        "/api/friends"
+      );
 
-    $("friendsCount").textContent =
+    $("friendsCount")
+      .textContent =
       data.friends.length;
 
-    if (currentView === "friends") {
+    if (
+      currentView ===
+      "friends"
+    ) {
 
       $("listTitle").textContent =
         "My Friends";
 
-      renderFriends(data.friends);
+      renderFriends(
+        data.friends
+      );
     }
 
   } catch (error) {
@@ -587,10 +1149,17 @@ function renderFriends(friends) {
   friends.forEach((user) => {
 
     const button =
-      document.createElement("button");
+      document.createElement(
+        "button"
+      );
 
     button.className =
       "user-item";
+
+    const online =
+      typeof user.online === "boolean"
+        ? user.online
+        : isOnline(user.id);
 
     button.innerHTML = `
       ${avatarHtml(user)}
@@ -602,15 +1171,31 @@ function renderFriends(friends) {
         </strong>
 
         <small>
-          Friend on JoyBoard
+          ${
+            online
+              ? "Online"
+              : "Offline"
+          }
         </small>
 
       </div>
     `;
 
-    button.onclick = () => openChat(user);
+    button.onclick = () =>
+      openChat(user);
 
-    $("userList").appendChild(button);
+    button.oncontextmenu =
+      (event) => {
+
+        event.preventDefault();
+
+        openUserProfile(
+          user.id
+        );
+      };
+
+    $("userList")
+      .appendChild(button);
   });
 }
 
@@ -622,18 +1207,25 @@ async function loadPeople(query = "") {
 
   currentView = "people";
 
-  setActiveMenu("peopleButton");
+  setActiveMenu(
+    "peopleButton"
+  );
 
   $("listTitle").textContent =
-    "People";
+    query
+      ? "Search Results"
+      : "People";
 
   try {
 
-    const data = await api(
-      `/api/users?q=${encodeURIComponent(query)}`
-    );
+    const data =
+      await api(
+        `/api/users?q=${encodeURIComponent(query)}`
+      );
 
-    renderPeople(data.users);
+    renderPeople(
+      data.users
+    );
 
   } catch (error) {
 
@@ -671,12 +1263,10 @@ function renderPeople(users) {
     return;
   }
 
-  /*
-     Social-style people layout
-  */
-
   const grid =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   grid.className =
     "people-grid";
@@ -684,15 +1274,23 @@ function renderPeople(users) {
   users.forEach((user) => {
 
     const card =
-      document.createElement("div");
+      document.createElement(
+        "div"
+      );
 
     card.className =
       "person-card";
 
+    const online =
+      typeof user.online === "boolean"
+        ? user.online
+        : isOnline(user.id);
+
     let action = "";
 
     if (
-      user.friendship_status === "friend"
+      user.friendship_status ===
+      "friend"
     ) {
 
       action = `
@@ -705,21 +1303,22 @@ function renderPeople(users) {
       `;
 
     } else if (
-      user.friendship_status === "request_sent"
+      user.friendship_status ===
+      "request_sent"
     ) {
 
       action = `
         <button
           class="person-action-button pending"
           type="button"
-          disabled
         >
           Request Sent
         </button>
       `;
 
     } else if (
-      user.friendship_status === "request_received"
+      user.friendship_status ===
+      "request_received"
     ) {
 
       action = `
@@ -727,7 +1326,7 @@ function renderPeople(users) {
           class="person-action-button pending"
           type="button"
         >
-          Check Requests
+          Check Request
         </button>
       `;
 
@@ -753,13 +1352,19 @@ function renderPeople(users) {
           user.avatar_url
             ? `
               <img
-                src="${escapeHtml(user.avatar_url)}"
+                src="${escapeHtml(
+                  user.avatar_url
+                )}"
                 class="person-image"
                 alt="Profile picture"
               >
             `
             : `
-              ${escapeHtml(initials(user.name))}
+              <div class="person-image person-initial">
+                ${escapeHtml(
+                  initials(user.name)
+                )}
+              </div>
             `
         }
 
@@ -776,8 +1381,23 @@ function renderPeople(users) {
         </p>
 
         <div class="person-status">
-          <span class="online-dot"></span>
-          JoyBoard member
+
+          <span
+            class="online-dot"
+            style="
+              background:
+                ${online
+                  ? "#2eae65"
+                  : "#a9b3b0"};
+            "
+          ></span>
+
+          ${
+            online
+              ? "Online"
+              : "Offline"
+          }
+
         </div>
 
         ${action}
@@ -785,19 +1405,99 @@ function renderPeople(users) {
       </div>
     `;
 
-    const addButton =
+    /* Open profile by clicking the card */
+    card.onclick = (event) => {
+
+      if (
+        event.target.closest(
+          ".person-action-button"
+        )
+      ) {
+        return;
+      }
+
+      openUserProfile(
+        user.id
+      );
+    };
+
+    /* Friend action */
+    const actionButton =
       card.querySelector(
-        ".person-action-button.add"
+        ".person-action-button"
       );
 
-    if (addButton) {
+    if (
+      user.friendship_status ===
+      "friend"
+    ) {
 
-      addButton.onclick =
+      actionButton.onclick = () => {
+        openUserProfile(
+          user.id
+        );
+      };
+
+    } else if (
+      user.friendship_status ===
+      "request_received"
+    ) {
+
+      actionButton.onclick = () => {
+
+        currentView =
+          "requests";
+
+        setActiveMenu(
+          "requestsButton"
+        );
+
+        $("searchInput").value =
+          "";
+
+        loadFriendRequests();
+      };
+
+    } else if (
+      user.friendship_status ===
+      "request_sent"
+    ) {
+
+      actionButton.onclick =
         async () => {
 
-          addButton.disabled = true;
+          try {
 
-          addButton.textContent =
+            await api(
+              `/api/friends/request/${user.id}`,
+              {
+                method: "DELETE"
+              }
+            );
+
+            await loadPeople(
+              $("searchInput")
+                .value
+                .trim()
+            );
+
+          } catch (error) {
+
+            alert(
+              error.message
+            );
+          }
+        };
+
+    } else {
+
+      actionButton.onclick =
+        async () => {
+
+          actionButton.disabled =
+            true;
+
+          actionButton.textContent =
             "Sending...";
 
           try {
@@ -809,20 +1509,26 @@ function renderPeople(users) {
               }
             );
 
-            addButton.className =
+            actionButton.className =
               "person-action-button pending";
 
-            addButton.textContent =
+            actionButton.textContent =
               "Request Sent";
+
+            user.friendship_status =
+              "request_sent";
 
           } catch (error) {
 
-            addButton.disabled = false;
+            actionButton.disabled =
+              false;
 
-            addButton.textContent =
+            actionButton.textContent =
               "+ Add Friend";
 
-            alert(error.message);
+            alert(
+              error.message
+            );
           }
         };
     }
@@ -830,7 +1536,38 @@ function renderPeople(users) {
     grid.appendChild(card);
   });
 
-  $("userList").appendChild(grid);
+  $("userList")
+    .appendChild(grid);
+}
+
+/* =========================================================
+   OPEN USER PROFILE
+========================================================= */
+
+async function openUserProfile(
+  userId
+) {
+
+  try {
+
+    const data =
+      await api(
+        `/api/users/${userId}/profile`
+      );
+
+    activeProfileUser =
+      data.user;
+
+    showProfileModal(
+      data.user
+    );
+
+  } catch (error) {
+
+    alert(
+      error.message
+    );
+  }
 }
 
 /* =========================
@@ -841,14 +1578,19 @@ async function loadFriendRequests() {
 
   try {
 
-    const data = await api(
-      "/api/friends/requests"
-    );
+    const data =
+      await api(
+        "/api/friends/requests"
+      );
 
-    $("requestsCount").textContent =
+    $("requestsCount")
+      .textContent =
       data.requests.length;
 
-    if (currentView === "requests") {
+    if (
+      currentView ===
+      "requests"
+    ) {
 
       $("listTitle").textContent =
         "Friend Requests";
@@ -864,9 +1606,12 @@ async function loadFriendRequests() {
   }
 }
 
-function renderFriendRequests(requests) {
+function renderFriendRequests(
+  requests
+) {
 
-  $("userList").innerHTML = "";
+  $("userList").innerHTML =
+    "";
 
   if (!requests.length) {
 
@@ -885,97 +1630,133 @@ function renderFriendRequests(requests) {
     return;
   }
 
-  requests.forEach((request) => {
+  requests.forEach(
+    (request) => {
 
-    const item =
-      document.createElement("div");
-
-    item.className =
-      "friend-request-item";
-
-    item.innerHTML = `
-
-      ${avatarHtml({
-        name: request.name,
-        avatar_url: request.avatar_url
-      })}
-
-      <div class="friend-request-user">
-
-        <strong>
-          ${escapeHtml(request.name)}
-        </strong>
-
-        <small>
-          Wants to be your friend
-        </small>
-
-      </div>
-
-      <div class="friend-request-actions">
-
-        <button
-          class="accept-friend-button"
-          type="button"
-        >
-          Accept
-        </button>
-
-        <button
-          class="decline-friend-button"
-          type="button"
-        >
-          Decline
-        </button>
-
-      </div>
-    `;
-
-    item.querySelector(
-      ".accept-friend-button"
-    ).onclick = async () => {
-
-      try {
-
-        await api(
-          `/api/friends/accept/${request.id}`,
-          {
-            method: "POST"
-          }
+      const item =
+        document.createElement(
+          "div"
         );
 
-        loadFriendRequests();
-        loadFriends();
+      item.className =
+        "friend-request-item";
 
-      } catch (error) {
+      item.innerHTML = `
 
-        alert(error.message);
-      }
-    };
+        ${avatarHtml({
+          name:
+            request.name,
+          avatar_url:
+            request.avatar_url
+        })}
 
-    item.querySelector(
-      ".decline-friend-button"
-    ).onclick = async () => {
+        <div
+          class="friend-request-user"
+        >
 
-      try {
+          <strong>
+            ${escapeHtml(
+              request.name
+            )}
+          </strong>
 
-        await api(
-          `/api/friends/decline/${request.id}`,
-          {
-            method: "POST"
+          <small>
+            Wants to be your friend
+          </small>
+
+        </div>
+
+        <div
+          class="friend-request-actions"
+        >
+
+          <button
+            class="accept-friend-button"
+            type="button"
+          >
+            Accept
+          </button>
+
+          <button
+            class="decline-friend-button"
+            type="button"
+          >
+            Decline
+          </button>
+
+        </div>
+      `;
+
+      item.onclick =
+        (event) => {
+
+          if (
+            event.target.closest(
+              ".friend-request-actions"
+            )
+          ) {
+            return;
           }
-        );
 
-        loadFriendRequests();
+          openUserProfile(
+            request.sender_id
+          );
+        };
 
-      } catch (error) {
+      item.querySelector(
+        ".accept-friend-button"
+      ).onclick =
+        async () => {
 
-        alert(error.message);
-      }
-    };
+          try {
 
-    $("userList").appendChild(item);
-  });
+            await api(
+              `/api/friends/accept/${request.id}`,
+              {
+                method: "POST"
+              }
+            );
+
+            await loadFriendRequests();
+
+            await loadFriends();
+
+          } catch (error) {
+
+            alert(
+              error.message
+            );
+          }
+        };
+
+      item.querySelector(
+        ".decline-friend-button"
+      ).onclick =
+        async () => {
+
+          try {
+
+            await api(
+              `/api/friends/decline/${request.id}`,
+              {
+                method: "POST"
+              }
+            );
+
+            await loadFriendRequests();
+
+          } catch (error) {
+
+            alert(
+              error.message
+            );
+          }
+        };
+
+      $("userList")
+        .appendChild(item);
+    }
+  );
 }
 
 /* =========================================================
@@ -983,35 +1764,43 @@ function renderFriendRequests(requests) {
 ========================================================= */
 
 $("chatsButton").onclick = () => {
-
   loadChats();
 };
 
 $("friendsButton").onclick = () => {
 
-  currentView = "friends";
+  currentView =
+    "friends";
 
-  setActiveMenu("friendsButton");
+  setActiveMenu(
+    "friendsButton"
+  );
 
-  $("searchInput").value = "";
+  $("searchInput").value =
+    "";
 
   loadFriends();
 };
 
 $("peopleButton").onclick = () => {
 
-  $("searchInput").value = "";
+  $("searchInput").value =
+    "";
 
   loadPeople();
 };
 
 $("requestsButton").onclick = () => {
 
-  currentView = "requests";
+  currentView =
+    "requests";
 
-  setActiveMenu("requestsButton");
+  setActiveMenu(
+    "requestsButton"
+  );
 
-  $("searchInput").value = "";
+  $("searchInput").value =
+    "";
 
   loadFriendRequests();
 };
@@ -1019,6 +1808,8 @@ $("requestsButton").onclick = () => {
 /* =========================================================
    SEARCH
 ========================================================= */
+
+let searchTimer = null;
 
 $("searchInput").addEventListener(
   "input",
@@ -1029,28 +1820,28 @@ $("searchInput").addEventListener(
         .value
         .trim();
 
-    /*
-       Searching automatically opens People.
-    */
+    currentView =
+      "people";
 
-    currentView = "people";
+    setActiveMenu(
+      "peopleButton"
+    );
 
-    setActiveMenu("peopleButton");
+    clearTimeout(
+      searchTimer
+    );
 
-    if (query) {
+    searchTimer =
+      setTimeout(
+        () => {
 
-      $("listTitle").textContent =
-        "Search Results";
+          loadPeople(
+            query
+          );
 
-      loadPeople(query);
-
-    } else {
-
-      $("listTitle").textContent =
-        "People";
-
-      loadPeople();
-    }
+        },
+        250
+      );
   }
 );
 
@@ -1060,7 +1851,8 @@ $("searchInput").addEventListener(
 
 async function openChat(user) {
 
-  activeUser = user;
+  activeUser =
+    user;
 
   $("emptyChat")
     .classList
@@ -1081,7 +1873,9 @@ async function openChat(user) {
 
     $("chatAvatar").innerHTML = `
       <img
-        src="${escapeHtml(user.avatar_url)}"
+        src="${escapeHtml(
+          user.avatar_url
+        )}"
         class="profile-avatar-image"
         alt="Profile picture"
       >
@@ -1097,17 +1891,25 @@ async function openChat(user) {
     .classList
     .add("hidden");
 
-  setStatus(false);
+  setStatus(
+    typeof user.online === "boolean"
+      ? user.online
+      : isOnline(user.id)
+  );
 
   try {
 
-    const data = await api(
-      `/api/messages/${user.id}`
+    const data =
+      await api(
+        `/api/messages/${user.id}`
+      );
+
+    $("messages").innerHTML =
+      "";
+
+    data.messages.forEach(
+      addMessage
     );
-
-    $("messages").innerHTML = "";
-
-    data.messages.forEach(addMessage);
 
     scrollMessages();
 
@@ -1124,7 +1926,9 @@ async function openChat(user) {
 
     $("messages").innerHTML = `
       <div style="padding:20px">
-        ${escapeHtml(error.message)}
+        ${escapeHtml(
+          error.message
+        )}
       </div>
     `;
   }
@@ -1134,17 +1938,23 @@ async function openChat(user) {
    STATUS
 ========================= */
 
-function setStatus(online) {
+function setStatus(
+  online
+) {
 
   $("chatStatus").textContent =
-    online ? "online" : "offline";
+    online
+      ? "online"
+      : "offline";
 }
 
 /* =========================
    MESSAGES
 ========================= */
 
-function addMessage(message) {
+function addMessage(
+  message
+) {
 
   if (
     $("messages")
@@ -1156,20 +1966,31 @@ function addMessage(message) {
   }
 
   const mine =
-    Number(message.sender_id) ===
-    Number(me.id);
+    Number(
+      message.sender_id
+    ) === Number(
+      me.id
+    );
 
   const item =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   item.className =
-    `message ${mine ? "mine" : ""}`;
+    `message ${
+      mine
+        ? "mine"
+        : ""
+    }`;
 
   item.dataset.id =
     message.id;
 
   const time =
-    timeText(message.created_at);
+    timeText(
+      message.created_at
+    );
 
   const meta =
     `${time}${
@@ -1182,18 +2003,23 @@ function addMessage(message) {
 
   item.innerHTML = `
     <div class="message-body">
-      ${escapeHtml(message.body)}
+      ${escapeHtml(
+        message.body
+      )}
     </div>
 
     <div
       class="message-meta"
-      data-time="${escapeHtml(time)}"
+      data-time="${escapeHtml(
+        time
+      )}"
     >
       ${meta}
     </div>
   `;
 
-  $("messages").appendChild(item);
+  $("messages")
+    .appendChild(item);
 
   scrollMessages();
 }
@@ -1201,7 +2027,8 @@ function addMessage(message) {
 function scrollMessages() {
 
   $("messages").scrollTop =
-    $("messages").scrollHeight;
+    $("messages")
+      .scrollHeight;
 }
 
 /* =========================
@@ -1219,11 +2046,15 @@ $("messageForm").addEventListener(
         .value
         .trim();
 
-    if (!body || !activeUser) {
+    if (
+      !body ||
+      !activeUser
+    ) {
       return;
     }
 
-    $("messageInput").value = "";
+    $("messageInput").value =
+      "";
 
     try {
 
@@ -1231,16 +2062,21 @@ $("messageForm").addEventListener(
         "/api/messages",
         {
           method: "POST",
-          body: JSON.stringify({
-            receiverId: activeUser.id,
-            body
-          })
+
+          body:
+            JSON.stringify({
+              receiverId:
+                activeUser.id,
+              body
+            })
         }
       );
 
     } catch (error) {
 
-      alert(error.message);
+      alert(
+        error.message
+      );
     }
   }
 );
@@ -1253,34 +2089,44 @@ $("messageInput").addEventListener(
   "input",
   () => {
 
-    if (!activeUser || !socket) {
+    if (
+      !activeUser ||
+      !socket
+    ) {
       return;
     }
 
     socket.emit(
       "typing",
       {
-        to: activeUser.id,
-        typing: true
+        to:
+          activeUser.id,
+        typing:
+          true
       }
     );
 
-    clearTimeout(typingTimer);
-
-    typingTimer = setTimeout(
-      () => {
-
-        socket.emit(
-          "typing",
-          {
-            to: activeUser.id,
-            typing: false
-          }
-        );
-
-      },
-      700
+    clearTimeout(
+      typingTimer
     );
+
+    typingTimer =
+      setTimeout(
+        () => {
+
+          socket.emit(
+            "typing",
+            {
+              to:
+                activeUser.id,
+              typing:
+                false
+            }
+          );
+
+        },
+        700
+      );
   }
 );
 
@@ -1288,93 +2134,125 @@ $("messageInput").addEventListener(
    BACK
 ========================= */
 
-$("backButton").onclick = () => {
+$("backButton").onclick =
+  () => {
 
-  $("chatApp")
-    .classList
-    .remove("show-chat");
+    $("chatApp")
+      .classList
+      .remove(
+        "show-chat"
+      );
 
-  activeUser = null;
-};
+    activeUser =
+      null;
+  };
 
 /* =========================
    PROFILE PICTURE
 ========================= */
 
-$("myAvatar").onclick = () => {
+$("myAvatar").onclick =
+  () => {
 
-  $("profilePictureInput").click();
-};
+    $("profilePictureInput")
+      .click();
+  };
 
-$("profilePictureInput").addEventListener(
-  "change",
-  async () => {
+$("profilePictureInput")
+  .addEventListener(
+    "change",
+    async () => {
 
-    const file =
-      $("profilePictureInput")
-        .files[0];
+      const file =
+        $("profilePictureInput")
+          .files[0];
 
-    if (!file) {
-      return;
-    }
+      if (!file) {
+        return;
+      }
 
-    if (!file.type.startsWith("image/")) {
-
-      alert(
-        "Please choose an image."
-      );
-
-      return;
-    }
-
-    if (file.size > 1024 * 1024) {
-
-      alert(
-        "Please choose an image smaller than 1MB."
-      );
-
-      return;
-    }
-
-    const reader =
-      new FileReader();
-
-    reader.onload = async () => {
-
-      try {
-
-        const data = await api(
-          "/api/profile",
-          {
-            method: "PATCH",
-            body: JSON.stringify({
-              name: me.name,
-              avatar_url: reader.result
-            })
-          }
-        );
-
-        me = data.user;
-
-        setMyAvatar();
-
-        loadFriends();
+      if (
+        !file.type.startsWith(
+          "image/"
+        )
+      ) {
 
         alert(
-          "Profile picture updated!"
+          "Please choose an image."
         );
 
-      } catch (error) {
-
-        alert(error.message);
+        return;
       }
-    };
 
-    reader.readAsDataURL(file);
+      if (
+        file.size >
+        1024 * 1024
+      ) {
 
-    $("profilePictureInput").value = "";
-  }
-);
+        alert(
+          "Please choose an image smaller than 1MB."
+        );
+
+        return;
+      }
+
+      const reader =
+        new FileReader();
+
+      reader.onload =
+        async () => {
+
+          try {
+
+            const data =
+              await api(
+                "/api/profile",
+                {
+                  method:
+                    "PATCH",
+
+                  body:
+                    JSON.stringify({
+                      name:
+                        me.name,
+
+                      avatar_url:
+                        reader.result
+                    })
+                }
+              );
+
+            me =
+              data.user;
+
+            setMyAvatar();
+
+            $("myName")
+              .textContent =
+              me.name;
+
+            loadFriends();
+
+            alert(
+              "Profile picture updated!"
+            );
+
+          } catch (error) {
+
+            alert(
+              error.message
+            );
+          }
+        };
+
+      reader.readAsDataURL(
+        file
+      );
+
+      $("profilePictureInput")
+        .value = "";
+    }
+  );
 
 /* =========================
    EDIT PROFILE
@@ -1389,14 +2267,18 @@ $("editProfileButton").onclick =
         me.name
       );
 
-    if (newName === null) {
+    if (
+      newName === null
+    ) {
       return;
     }
 
     const name =
       newName.trim();
 
-    if (name.length < 2) {
+    if (
+      name.length < 2
+    ) {
 
       alert(
         "Name must be at least 2 characters."
@@ -1407,21 +2289,28 @@ $("editProfileButton").onclick =
 
     try {
 
-      const data = await api(
-        "/api/profile",
-        {
-          method: "PATCH",
-          body: JSON.stringify({
-            name,
-            avatar_url:
-              me.avatar_url || ""
-          })
-        }
-      );
+      const data =
+        await api(
+          "/api/profile",
+          {
+            method:
+              "PATCH",
 
-      me = data.user;
+            body:
+              JSON.stringify({
+                name,
+                avatar_url:
+                  me.avatar_url ||
+                  ""
+              })
+          }
+        );
 
-      $("myName").textContent =
+      me =
+        data.user;
+
+      $("myName")
+        .textContent =
         me.name;
 
       setMyAvatar();
@@ -1429,7 +2318,9 @@ $("editProfileButton").onclick =
       loadFriends();
 
       if (activeUser) {
-        $("chatName").textContent =
+
+        $("chatName")
+          .textContent =
           activeUser.name;
       }
 
@@ -1439,7 +2330,26 @@ $("editProfileButton").onclick =
 
     } catch (error) {
 
-      alert(error.message);
+      alert(
+        error.message
+      );
+    }
+  };
+
+/* =========================
+   MY PROFILE CLICK
+========================= */
+
+$("myName").onclick =
+  () => {
+
+    if (me) {
+      activeProfileUser =
+        me;
+
+      showProfileModal(
+        me
+      );
     }
   };
 
@@ -1447,22 +2357,27 @@ $("editProfileButton").onclick =
    LOGOUT
 ========================= */
 
-$("logoutButton").onclick = () => {
+$("logoutButton").onclick =
+  () => {
 
-  if (socket) {
-    socket.disconnect();
-  }
+    if (socket) {
+      socket.disconnect();
+    }
 
-  localStorage.removeItem(
-    "joyboard_token"
-  );
+    onlineUsers.clear();
 
-  token = null;
-  me = null;
-  activeUser = null;
+    localStorage.removeItem(
+      "joyboard_token"
+    );
 
-  showAuth("login");
-};
+    token = null;
+    me = null;
+    activeUser = null;
+
+    closeProfileModal();
+
+    showAuth("login");
+  };
 
 /* =========================
    START
