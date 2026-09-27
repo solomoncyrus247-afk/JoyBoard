@@ -3,75 +3,143 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <title>JoyBoard</title>
+
   <link rel="stylesheet" href="/css/style.css">
 </head>
 
 <body>
 
-  <!-- LOGIN / REGISTER -->
+  <!-- =====================================================
+       LOGIN / REGISTER
+  ====================================================== -->
+
   <section id="authScreen" class="auth-screen">
+
     <div class="auth-card">
 
       <div class="brand">
-        <div class="brand-icon">J</div>
+
+        <div class="brand-icon">
+          J
+        </div>
+
         <div>
           <h1>JoyBoard</h1>
           <p>Simple. Private. Connected.</p>
         </div>
+
       </div>
 
+
       <div class="auth-tabs">
-        <button id="loginTab" class="active">Login</button>
-        <button id="registerTab">Create account</button>
+
+        <button
+          id="loginTab"
+          class="active"
+          type="button"
+        >
+          Login
+        </button>
+
+        <button
+          id="registerTab"
+          type="button"
+        >
+          Create account
+        </button>
+
       </div>
+
 
       <form id="authForm">
 
-        <div id="nameGroup" class="field hidden">
+        <div
+          id="nameGroup"
+          class="field hidden"
+        >
+
           <label>Full name</label>
-          <input id="name" type="text" placeholder="Your name">
+
+          <input
+            id="name"
+            type="text"
+            placeholder="Your name"
+          >
+
         </div>
 
+
         <div class="field">
+
           <label>Email</label>
+
           <input
             id="email"
             type="email"
             placeholder="you@example.com"
             required
           >
+
         </div>
 
+
         <div class="field">
+
           <label>Password</label>
+
           <input
             id="password"
             type="password"
             placeholder="At least 6 characters"
             required
           >
+
         </div>
 
-        <button id="authButton" class="primary-button" type="submit">
+
+        <button
+          id="authButton"
+          class="primary-button"
+          type="submit"
+        >
           Login
         </button>
 
-        <p id="authMessage" class="form-message"></p>
+
+        <p
+          id="authMessage"
+          class="form-message"
+        ></p>
 
       </form>
 
     </div>
+
   </section>
 
 
-  <!-- CHAT APPLICATION -->
-  <main id="chatApp" class="chat-app hidden">
 
-    <!-- SIDEBAR -->
+  <!-- =====================================================
+       JOYBOARD APPLICATION
+  ====================================================== -->
+
+  <main
+    id="chatApp"
+    class="chat-app hidden"
+  >
+
+
+    <!-- =================================================
+         SIDEBAR
+    ================================================== -->
+
     <aside class="sidebar">
 
-      <!-- MY PROFILE -->
+
+      <!-- PROFILE HEADER -->
+
       <header class="sidebar-header">
 
         <div class="my-profile">
@@ -85,12 +153,21 @@
             J
           </button>
 
+
           <div>
-            <strong id="myName">You</strong>
-            <small>JoyBoard</small>
+
+            <strong id="myName">
+              You
+            </strong>
+
+            <small>
+              JoyBoard
+            </small>
+
           </div>
 
         </div>
+
 
         <div class="profile-actions">
 
@@ -103,11 +180,12 @@
             ✎
           </button>
 
+
           <button
             id="logoutButton"
             class="icon-button"
-            title="Logout"
             type="button"
+            title="Logout"
           >
             ↪
           </button>
@@ -117,7 +195,8 @@
       </header>
 
 
-      <!-- PROFILE PICTURE INPUT -->
+      <!-- PROFILE PICTURE -->
+
       <input
         id="profilePictureInput"
         type="file"
@@ -126,73 +205,184 @@
       >
 
 
-      <!-- FRIEND MENU -->
-      <div class="friend-menu">
+
+      <!-- =================================================
+           MAIN SOCIAL NAVIGATION
+      ================================================== -->
+
+      <nav class="social-menu">
+
+        <button
+          id="chatsButton"
+          class="social-menu-button"
+          type="button"
+        >
+          <span class="social-menu-icon">
+            💬
+          </span>
+
+          <span>
+            Chats
+          </span>
+        </button>
+
 
         <button
           id="friendsButton"
-          class="friend-menu-button active"
+          class="social-menu-button active"
           type="button"
         >
-          👥 Friends
-          <span id="friendsCount">0</span>
+          <span class="social-menu-icon">
+            👥
+          </span>
+
+          <span>
+            Friends
+          </span>
+
+          <span
+            id="friendsCount"
+            class="menu-badge"
+          >
+            0
+          </span>
+
         </button>
+
+
+        <button
+          id="peopleButton"
+          class="social-menu-button"
+          type="button"
+        >
+          <span class="social-menu-icon">
+            🌎
+          </span>
+
+          <span>
+            People
+          </span>
+
+        </button>
+
 
         <button
           id="requestsButton"
-          class="friend-menu-button"
+          class="social-menu-button"
           type="button"
         >
-          📨 Requests
-          <span id="requestsCount">0</span>
+          <span class="social-menu-icon">
+            📨
+          </span>
+
+          <span>
+            Requests
+          </span>
+
+          <span
+            id="requestsCount"
+            class="menu-badge"
+          >
+            0
+          </span>
+
         </button>
 
-      </div>
+      </nav>
 
 
-      <!-- SEARCH -->
+
+      <!-- =================================================
+           SEARCH
+      ================================================== -->
+
       <div class="search-box">
-        <span>⌕</span>
+
+        <span>
+          ⌕
+        </span>
 
         <input
           id="searchInput"
           type="search"
           placeholder="Search people"
         >
+
       </div>
 
 
-      <!-- PAGE TITLE -->
-      <div id="listTitle" class="list-title">
+
+      <!-- =================================================
+           LIST TITLE
+      ================================================== -->
+
+      <div
+        id="listTitle"
+        class="list-title"
+      >
         My Friends
       </div>
 
 
-      <!-- USERS / FRIENDS / REQUESTS -->
-      <div id="userList" class="user-list"></div>
+
+      <!-- =================================================
+           PEOPLE / FRIENDS / REQUESTS / CHATS
+      ================================================== -->
+
+      <div
+        id="userList"
+        class="user-list"
+      ></div>
+
 
     </aside>
 
 
-    <!-- CHAT PANEL -->
+
+    <!-- =====================================================
+         CHAT PANEL
+    ====================================================== -->
+
     <section class="chat-panel">
 
+
       <!-- EMPTY CHAT -->
-      <div id="emptyChat" class="empty-chat">
 
-        <div class="empty-logo">J</div>
+      <div
+        id="emptyChat"
+        class="empty-chat"
+      >
 
-        <h2>Welcome to JoyBoard</h2>
+        <div class="empty-logo">
+          J
+        </div>
+
+
+        <h2>
+          Welcome to JoyBoard
+        </h2>
+
 
         <p>
-          Add friends and start private conversations.
+          Connect with people, make friends,
+          and start private conversations.
         </p>
 
       </div>
 
 
-      <!-- CONVERSATION -->
-      <div id="conversation" class="conversation hidden">
+
+      <!-- =================================================
+           CONVERSATION
+      ================================================== -->
+
+      <div
+        id="conversation"
+        class="conversation hidden"
+      >
+
+
+        <!-- CHAT HEADER -->
 
         <header class="chat-header">
 
@@ -204,9 +394,14 @@
             ‹
           </button>
 
-          <div id="chatAvatar" class="avatar">
+
+          <div
+            id="chatAvatar"
+            class="avatar"
+          >
             ?
           </div>
+
 
           <div class="chat-person">
 
@@ -223,11 +418,18 @@
         </header>
 
 
+
         <!-- MESSAGES -->
-        <div id="messages" class="messages"></div>
+
+        <div
+          id="messages"
+          class="messages"
+        ></div>
+
 
 
         <!-- TYPING -->
+
         <div
           id="typingIndicator"
           class="typing hidden"
@@ -236,7 +438,9 @@
         </div>
 
 
+
         <!-- MESSAGE FORM -->
+
         <form
           id="messageForm"
           class="message-form"
@@ -248,7 +452,11 @@
             placeholder="Type a message"
           >
 
-          <button type="submit">
+
+          <button
+            type="submit"
+            title="Send message"
+          >
             ➤
           </button>
 
@@ -261,8 +469,13 @@
   </main>
 
 
-  <!-- JAVASCRIPT -->
+
+  <!-- =====================================================
+       JAVASCRIPT
+  ====================================================== -->
+
   <script src="/socket.io/socket.io.js"></script>
+
   <script src="/js/app.js"></script>
 
 </body>
