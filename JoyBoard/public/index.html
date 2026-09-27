@@ -15,7 +15,6 @@
 
       <div class="brand">
         <div class="brand-icon">J</div>
-
         <div>
           <h1>JoyBoard</h1>
           <p>Simple. Private. Connected.</p>
@@ -72,6 +71,7 @@
     <!-- SIDEBAR -->
     <aside class="sidebar">
 
+      <!-- MY PROFILE -->
       <header class="sidebar-header">
 
         <div class="my-profile">
@@ -126,6 +126,30 @@
       >
 
 
+      <!-- FRIEND MENU -->
+      <div class="friend-menu">
+
+        <button
+          id="friendsButton"
+          class="friend-menu-button active"
+          type="button"
+        >
+          👥 Friends
+          <span id="friendsCount">0</span>
+        </button>
+
+        <button
+          id="requestsButton"
+          class="friend-menu-button"
+          type="button"
+        >
+          📨 Requests
+          <span id="requestsCount">0</span>
+        </button>
+
+      </div>
+
+
       <!-- SEARCH -->
       <div class="search-box">
         <span>⌕</span>
@@ -138,7 +162,13 @@
       </div>
 
 
-      <!-- USERS -->
+      <!-- PAGE TITLE -->
+      <div id="listTitle" class="list-title">
+        My Friends
+      </div>
+
+
+      <!-- USERS / FRIENDS / REQUESTS -->
       <div id="userList" class="user-list"></div>
 
     </aside>
@@ -155,7 +185,7 @@
         <h2>Welcome to JoyBoard</h2>
 
         <p>
-          Search for someone and start a private conversation.
+          Add friends and start private conversations.
         </p>
 
       </div>
