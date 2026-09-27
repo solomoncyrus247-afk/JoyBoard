@@ -5,6 +5,7 @@ let me = null;
 let activeUser = null;
 let socket = null;
 let typingTimer = null;
+let currentView = "friends";
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({
@@ -27,7 +28,9 @@ function timeText(date) {
   });
 }
 
-/* PROFILE IMAGE */
+/* =========================
+   PROFILE IMAGE
+========================= */
 
 function avatarHtml(user, className = "avatar") {
   const letter = escapeHtml(initials(user?.name));
@@ -67,7 +70,9 @@ function setMyAvatar() {
   }
 }
 
-/* AUTH */
+/* =========================
+   AUTH
+========================= */
 
 function showAuth(mode = "login") {
   $("authScreen").classList.remove("hidden");
@@ -79,6 +84,7 @@ function showAuth(mode = "login") {
   $("registerTab").classList.toggle("active", register);
   $("nameGroup").classList.toggle("hidden", !register);
   $("name").required = register;
+
   $("authButton").textContent = register
     ? "Create account"
     : "Login";
@@ -95,7 +101,9 @@ function showChatApp() {
   setMyAvatar();
 }
 
-/* API */
+/* =========================
+   API
+========================= */
 
 async function api(url, options = {}) {
   const headers = {
@@ -115,13 +123,17 @@ async function api(url, options = {}) {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data.error || "Something went wrong.");
+    throw new Error(
+      data.error || "Something went wrong."
+    );
   }
 
   return data;
 }
 
-/* START APP */
+/* =========================
+   START APP
+========================= */
 
 async function boot() {
   if (!token) {
@@ -134,8 +146,11 @@ async function boot() {
     me = data.user;
 
     showChatApp();
+
     connectSocket();
-    loadConversations();
+
+    loadFriends();
+    loadFriendRequests();
 
   } catch {
     localStorage.removeItem("joyboard_token");
@@ -146,54 +161,72 @@ async function boot() {
   }
 }
 
-/* AUTH TABS */
+/* =========================
+   AUTH TABS
+========================= */
 
 $("loginTab").onclick = () => showAuth("login");
 
 $("registerTab").onclick = () => showAuth("register");
 
-/* LOGIN / REGISTER */
+/* =========================
+   LOGIN / REGISTER
+========================= */
 
-$("authForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
+$("authForm").addEventListener(
+  "submit",
+  async (event) => {
+    event.preventDefault();
 
-  const register = !$("nameGroup").classList.contains("hidden");
+    const register =
+      !$("nameGroup").classList.contains("hidden");
 
-  $("authMessage").textContent = "Please wait…";
+    $("authMessage").textContent =
+      "Please wait…";
 
-  try {
-    const data = await api(
-      register ? "/api/register" : "/api/login",
-      {
-        method: "POST",
-        body: JSON.stringify({
-          name: $("name").value,
-          email: $("email").value,
-          password: $("password").value
-        })
-      }
-    );
+    try {
+      const data = await api(
+        register
+          ? "/api/register"
+          : "/api/login",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            name: $("name").value,
+            email: $("email").value,
+            password: $("password").value
+          })
+        }
+      );
 
-    token = data.token;
+      token = data.token;
 
-    localStorage.setItem("joyboard_token", token);
+      localStorage.setItem(
+        "joyboard_token",
+        token
+      );
 
-    me = data.user;
+      me = data.user;
 
-    $("authForm").reset();
+      $("authForm").reset();
 
-    showChatApp();
+      showChatApp();
 
-    connectSocket();
+      connectSocket();
 
-    loadConversations();
+      loadFriends();
+      loadFriendRequests();
 
-  } catch (error) {
-    $("authMessage").textContent = error.message;
+    } catch (error) {
+      $("authMessage").textContent =
+        error.message;
+    }
   }
-});
+);
 
-/* SOCKET */
+/* =========================
+   SOCKET
+========================= */
 
 function connectSocket() {
   if (socket) {
@@ -206,137 +239,193 @@ function connectSocket() {
     }
   });
 
-  socket.on("presence", ({ userId, online }) => {
-
-    if (
-      activeUser &&
-      Number(activeUser.id) === Number(userId)
-    ) {
-      setStatus(online);
-    }
-
-    loadConversations();
-  });
-
-  socket.on("typing", ({ from, typing }) => {
-
-    if (
-      activeUser &&
-      Number(activeUser.id) === Number(from)
-    ) {
-      $("typingIndicator")
-        .classList
-        .toggle("hidden", !typing);
-    }
-  });
-
-  socket.on("message:new", (message) => {
-
-    if (
-      activeUser &&
-      Number(message.sender_id) === Number(activeUser.id)
-    ) {
-
-      addMessage(message);
-
-      api(
-        `/api/messages/${activeUser.id}/read`,
-        { method: "PATCH" }
-      ).catch(() => {});
-    }
-
-    loadConversations();
-  });
-
-  socket.on("message:sent", (message) => {
-
-    if (
-      activeUser &&
-      Number(message.receiver_id) === Number(activeUser.id)
-    ) {
+  socket.on(
+    "presence",
+    ({ userId, online }) => {
 
       if (
-        ![...$("messages").querySelectorAll("[data-id]")]
-          .some((el) => el.dataset.id == message.id)
+        activeUser &&
+        Number(activeUser.id) === Number(userId)
       ) {
-        addMessage(message);
+        setStatus(online);
+      }
+
+      if (currentView === "friends") {
+        loadFriends();
       }
     }
+  );
 
-    loadConversations();
-  });
+  socket.on(
+    "typing",
+    ({ from, typing }) => {
 
-  socket.on("messages:read", ({ by }) => {
-
-    if (
-      activeUser &&
-      Number(activeUser.id) === Number(by)
-    ) {
-
-      [
-        ...$("messages")
-          .querySelectorAll(".mine .message-meta")
-      ].forEach((el) => {
-
-        el.textContent =
-          `${el.dataset.time || ""}  ✓✓`;
-      });
+      if (
+        activeUser &&
+        Number(activeUser.id) === Number(from)
+      ) {
+        $("typingIndicator")
+          .classList
+          .toggle(
+            "hidden",
+            !typing
+          );
+      }
     }
-  });
+  );
+
+  socket.on(
+    "message:new",
+    (message) => {
+
+      if (
+        activeUser &&
+        Number(message.sender_id) ===
+          Number(activeUser.id)
+      ) {
+
+        addMessage(message);
+
+        api(
+          `/api/messages/${activeUser.id}/read`,
+          {
+            method: "PATCH"
+          }
+        ).catch(() => {});
+      }
+
+      loadFriends();
+    }
+  );
+
+  socket.on(
+    "message:sent",
+    (message) => {
+
+      if (
+        activeUser &&
+        Number(message.receiver_id) ===
+          Number(activeUser.id)
+      ) {
+
+        if (
+          ![
+            ...$("messages")
+              .querySelectorAll("[data-id]")
+          ].some(
+            (el) =>
+              el.dataset.id == message.id
+          )
+        ) {
+          addMessage(message);
+        }
+      }
+
+      loadFriends();
+    }
+  );
+
+  socket.on(
+    "messages:read",
+    ({ by }) => {
+
+      if (
+        activeUser &&
+        Number(activeUser.id) === Number(by)
+      ) {
+
+        [
+          ...$("messages")
+            .querySelectorAll(
+              ".mine .message-meta"
+            )
+        ].forEach((el) => {
+
+          el.textContent =
+            `${el.dataset.time || ""}  ✓✓`;
+        });
+      }
+    }
+  );
+
+  /* NEW FRIEND REQUEST */
+
+  socket.on(
+    "friend:request",
+    () => {
+
+      loadFriendRequests();
+
+      if (currentView === "requests") {
+        loadFriendRequests();
+      }
+
+      alert(
+        "You received a new friend request!"
+      );
+    }
+  );
+
+  /* FRIEND REQUEST ACCEPTED */
+
+  socket.on(
+    "friend:accepted",
+    () => {
+
+      loadFriends();
+
+      alert(
+        "Your friend request was accepted!"
+      );
+    }
+  );
 }
 
-/* CONVERSATIONS */
+/* =========================
+   FRIENDS
+========================= */
 
-async function loadConversations() {
-
+async function loadFriends() {
   try {
-
-    const data = await api("/api/conversations");
-
-    renderUsers(data.conversations, true);
-
-  } catch {}
-}
-
-/* SEARCH */
-
-async function searchUsers(query = "") {
-
-  try {
-
     const data = await api(
-      `/api/users?q=${encodeURIComponent(query)}`
+      "/api/friends"
     );
 
-    renderUsers(data.users, false);
+    $("friendsCount").textContent =
+      data.friends.length;
 
-  } catch {}
+    if (currentView === "friends") {
+      $("listTitle").textContent =
+        "My Friends";
+
+      renderFriends(data.friends);
+    }
+  } catch (error) {
+    console.error(error);
+  }
 }
 
-/* USERS */
-
-function renderUsers(users, conversationsMode) {
-
+function renderFriends(friends) {
   $("userList").innerHTML = "";
 
-  if (!users.length) {
+  if (!friends.length) {
 
     $("userList").innerHTML = `
-      <div style="
-        padding:25px;
-        color:#71807a;
-        text-align:center
-      ">
-        No people found.
+      <div class="empty-list">
+        <strong>No friends yet</strong>
+        <small>
+          Search for people above and add them.
+        </small>
       </div>
     `;
 
     return;
   }
 
-  users.forEach((user) => {
+  friends.forEach((user) => {
 
-    const button = document.createElement("button");
+    const button =
+      document.createElement("button");
 
     button.className = "user-item";
 
@@ -350,26 +439,14 @@ function renderUsers(users, conversationsMode) {
         </strong>
 
         <small>
-          ${
-            conversationsMode
-              ? escapeHtml(
-                  user.last_message ||
-                  "Start a conversation"
-                )
-              : escapeHtml(user.email)
-          }
+          ${escapeHtml(
+            user.last_seen
+              ? "Friend on JoyBoard"
+              : "Friend"
+          )}
         </small>
 
       </div>
-
-      ${
-        conversationsMode &&
-        Number(user.unread_count) > 0
-          ? `<span class="unread">
-              ${user.unread_count}
-             </span>`
-          : ""
-      }
     `;
 
     button.onclick = () => openChat(user);
@@ -378,32 +455,424 @@ function renderUsers(users, conversationsMode) {
   });
 }
 
-/* SEARCH INPUT */
+/* =========================
+   FRIEND REQUESTS
+========================= */
 
-$("searchInput").addEventListener("input", () => {
+async function loadFriendRequests() {
+  try {
+    const data = await api(
+      "/api/friends/requests"
+    );
 
-  const query = $("searchInput").value.trim();
+    $("requestsCount").textContent =
+      data.requests.length;
 
-  if (query) {
-    searchUsers(query);
-  } else {
-    loadConversations();
+    if (currentView === "requests") {
+      $("listTitle").textContent =
+        "Friend Requests";
+
+      renderFriendRequests(
+        data.requests
+      );
+    }
+  } catch (error) {
+    console.error(error);
   }
-});
+}
 
-/* OPEN CHAT */
+function renderFriendRequests(requests) {
+  $("userList").innerHTML = "";
+
+  if (!requests.length) {
+
+    $("userList").innerHTML = `
+      <div class="empty-list">
+        <strong>No friend requests</strong>
+        <small>
+          New requests will appear here.
+        </small>
+      </div>
+    `;
+
+    return;
+  }
+
+  requests.forEach((request) => {
+
+    const item =
+      document.createElement("div");
+
+    item.className =
+      "friend-request-item";
+
+    item.innerHTML = `
+      <div class="friend-request-user">
+
+        ${avatarHtml({
+          name: request.name,
+          avatar_url: request.avatar_url
+        })}
+
+        <div class="user-item-info">
+
+          <strong>
+            ${escapeHtml(request.name)}
+          </strong>
+
+          <small>
+            Wants to be your friend
+          </small>
+
+        </div>
+
+      </div>
+
+      <div class="friend-request-actions">
+
+        <button
+          class="accept-friend-button"
+          type="button"
+        >
+          Accept
+        </button>
+
+        <button
+          class="decline-friend-button"
+          type="button"
+        >
+          Decline
+        </button>
+
+      </div>
+    `;
+
+    item
+      .querySelector(
+        ".accept-friend-button"
+      )
+      .onclick = async () => {
+
+        try {
+
+          await api(
+            `/api/friends/accept/${request.id}`,
+            {
+              method: "POST"
+            }
+          );
+
+          loadFriendRequests();
+          loadFriends();
+
+        } catch (error) {
+          alert(error.message);
+        }
+      };
+
+    item
+      .querySelector(
+        ".decline-friend-button"
+      )
+      .onclick = async () => {
+
+        try {
+
+          await api(
+            `/api/friends/decline/${request.id}`,
+            {
+              method: "POST"
+            }
+          );
+
+          loadFriendRequests();
+
+        } catch (error) {
+          alert(error.message);
+        }
+      };
+
+    $("userList").appendChild(item);
+  });
+}
+
+/* =========================
+   SEARCH PEOPLE
+========================= */
+
+async function searchUsers(query = "") {
+
+  try {
+
+    const data = await api(
+      `/api/users?q=${encodeURIComponent(query)}`
+    );
+
+    $("listTitle").textContent =
+      query
+        ? "Search Results"
+        : "People";
+
+    renderSearchResults(data.users);
+
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function renderSearchResults(users) {
+
+  $("userList").innerHTML = "";
+
+  if (!users.length) {
+
+    $("userList").innerHTML = `
+      <div class="empty-list">
+        <strong>No people found</strong>
+        <small>
+          Try another name or email.
+        </small>
+      </div>
+    `;
+
+    return;
+  }
+
+  users.forEach((user) => {
+
+    const item =
+      document.createElement("div");
+
+    item.className =
+      "search-user-item";
+
+    let action = "";
+
+    if (
+      user.friendship_status ===
+      "friend"
+    ) {
+
+      action = `
+        <button
+          class="friend-status-button"
+          disabled
+        >
+          ✓ Friend
+        </button>
+      `;
+
+    } else if (
+      user.friendship_status ===
+      "request_sent"
+    ) {
+
+      action = `
+        <button
+          class="friend-status-button"
+          disabled
+        >
+          Request Sent
+        </button>
+      `;
+
+    } else if (
+      user.friendship_status ===
+      "request_received"
+    ) {
+
+      action = `
+        <button
+          class="friend-status-button"
+          disabled
+        >
+          Check Requests
+        </button>
+      `;
+
+    } else {
+
+      action = `
+        <button
+          class="add-friend-button"
+          type="button"
+        >
+          + Add Friend
+        </button>
+      `;
+    }
+
+    item.innerHTML = `
+      <div class="search-user-main">
+
+        ${avatarHtml(user)}
+
+        <div class="user-item-info">
+
+          <strong>
+            ${escapeHtml(user.name)}
+          </strong>
+
+          <small>
+            ${escapeHtml(user.email)}
+          </small>
+
+        </div>
+
+      </div>
+
+      ${action}
+    `;
+
+    const addButton =
+      item.querySelector(
+        ".add-friend-button"
+      );
+
+    if (addButton) {
+
+      addButton.onclick = async () => {
+
+        addButton.disabled = true;
+
+        addButton.textContent =
+          "Sending...";
+
+        try {
+
+          await api(
+            `/api/friends/request/${user.id}`,
+            {
+              method: "POST"
+            }
+          );
+
+          addButton.textContent =
+            "Request Sent";
+
+          addButton.className =
+            "friend-status-button";
+
+        } catch (error) {
+
+          addButton.disabled = false;
+
+          addButton.textContent =
+            "+ Add Friend";
+
+          alert(error.message);
+        }
+      };
+    }
+
+    $("userList").appendChild(item);
+  });
+}
+
+/* =========================
+   MENU BUTTONS
+========================= */
+
+$("friendsButton").onclick = () => {
+
+  currentView = "friends";
+
+  $("friendsButton")
+    .classList
+    .add("active");
+
+  $("requestsButton")
+    .classList
+    .remove("active");
+
+  $("searchInput").value = "";
+
+  loadFriends();
+};
+
+$("requestsButton").onclick = () => {
+
+  currentView = "requests";
+
+  $("requestsButton")
+    .classList
+    .add("active");
+
+  $("friendsButton")
+    .classList
+    .remove("active");
+
+  $("searchInput").value = "";
+
+  loadFriendRequests();
+};
+
+/* =========================
+   SEARCH INPUT
+========================= */
+
+$("searchInput").addEventListener(
+  "input",
+  () => {
+
+    const query =
+      $("searchInput")
+        .value
+        .trim();
+
+    if (query) {
+
+      currentView = "search";
+
+      $("friendsButton")
+        .classList
+        .remove("active");
+
+      $("requestsButton")
+        .classList
+        .remove("active");
+
+      searchUsers(query);
+
+    } else {
+
+      currentView = "friends";
+
+      $("friendsButton")
+        .classList
+        .add("active");
+
+      $("requestsButton")
+        .classList
+        .remove("active");
+
+      loadFriends();
+    }
+  }
+);
+
+/* =========================
+   OPEN CHAT
+========================= */
 
 async function openChat(user) {
 
   activeUser = user;
 
-  $("emptyChat").classList.add("hidden");
+  $("emptyChat")
+    .classList
+    .add("hidden");
 
-  $("conversation").classList.remove("hidden");
+  $("conversation")
+    .classList
+    .remove("hidden");
 
-  $("chatApp").classList.add("show-chat");
+  $("chatApp")
+    .classList
+    .add("show-chat");
 
-  $("chatName").textContent = user.name;
+  $("chatName").textContent =
+    user.name;
 
   if (user.avatar_url) {
 
@@ -421,7 +890,9 @@ async function openChat(user) {
       initials(user.name);
   }
 
-  $("typingIndicator").classList.add("hidden");
+  $("typingIndicator")
+    .classList
+    .add("hidden");
 
   setStatus(false);
 
@@ -439,10 +910,12 @@ async function openChat(user) {
 
     await api(
       `/api/messages/${user.id}/read`,
-      { method: "PATCH" }
+      {
+        method: "PATCH"
+      }
     );
 
-    loadConversations();
+    loadFriends();
 
   } catch (error) {
 
@@ -454,7 +927,9 @@ async function openChat(user) {
   }
 }
 
-/* STATUS */
+/* =========================
+   STATUS
+========================= */
 
 function setStatus(online) {
 
@@ -462,19 +937,24 @@ function setStatus(online) {
     online ? "online" : "offline";
 }
 
-/* MESSAGES */
+/* =========================
+   MESSAGES
+========================= */
 
 function addMessage(message) {
 
   if (
     $("messages")
-      .querySelector(`[data-id="${message.id}"]`)
+      .querySelector(
+        `[data-id="${message.id}"]`
+      )
   ) {
     return;
   }
 
   const mine =
-    Number(message.sender_id) === Number(me.id);
+    Number(message.sender_id) ===
+    Number(me.id);
 
   const item =
     document.createElement("div");
@@ -482,7 +962,8 @@ function addMessage(message) {
   item.className =
     `message ${mine ? "mine" : ""}`;
 
-  item.dataset.id = message.id;
+  item.dataset.id =
+    message.id;
 
   const time =
     timeText(message.created_at);
@@ -520,7 +1001,9 @@ function scrollMessages() {
     $("messages").scrollHeight;
 }
 
-/* SEND MESSAGE */
+/* =========================
+   SEND MESSAGE
+========================= */
 
 $("messageForm").addEventListener(
   "submit",
@@ -529,7 +1012,9 @@ $("messageForm").addEventListener(
     event.preventDefault();
 
     const body =
-      $("messageInput").value.trim();
+      $("messageInput")
+        .value
+        .trim();
 
     if (!body || !activeUser) {
       return;
@@ -539,13 +1024,16 @@ $("messageForm").addEventListener(
 
     try {
 
-      await api("/api/messages", {
-        method: "POST",
-        body: JSON.stringify({
-          receiverId: activeUser.id,
-          body
-        })
-      });
+      await api(
+        "/api/messages",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            receiverId: activeUser.id,
+            body
+          })
+        }
+      );
 
     } catch (error) {
 
@@ -554,7 +1042,9 @@ $("messageForm").addEventListener(
   }
 );
 
-/* TYPING */
+/* =========================
+   TYPING
+========================= */
 
 $("messageInput").addEventListener(
   "input",
@@ -564,34 +1054,49 @@ $("messageInput").addEventListener(
       return;
     }
 
-    socket.emit("typing", {
-      to: activeUser.id,
-      typing: true
-    });
+    socket.emit(
+      "typing",
+      {
+        to: activeUser.id,
+        typing: true
+      }
+    );
 
     clearTimeout(typingTimer);
 
-    typingTimer = setTimeout(() => {
+    typingTimer = setTimeout(
+      () => {
 
-      socket.emit("typing", {
-        to: activeUser.id,
-        typing: false
-      });
+        socket.emit(
+          "typing",
+          {
+            to: activeUser.id,
+            typing: false
+          }
+        );
 
-    }, 700);
+      },
+      700
+    );
   }
 );
 
-/* BACK */
+/* =========================
+   BACK
+========================= */
 
 $("backButton").onclick = () => {
 
-  $("chatApp").classList.remove("show-chat");
+  $("chatApp")
+    .classList
+    .remove("show-chat");
 
   activeUser = null;
 };
 
-/* PROFILE PICTURE */
+/* =========================
+   PROFILE PICTURE
+========================= */
 
 $("myAvatar").onclick = () => {
 
@@ -603,7 +1108,8 @@ $("profilePictureInput").addEventListener(
   async () => {
 
     const file =
-      $("profilePictureInput").files[0];
+      $("profilePictureInput")
+        .files[0];
 
     if (!file) {
       return;
@@ -611,14 +1117,18 @@ $("profilePictureInput").addEventListener(
 
     if (!file.type.startsWith("image/")) {
 
-      alert("Please choose an image.");
+      alert(
+        "Please choose an image."
+      );
 
       return;
     }
 
     if (file.size > 1024 * 1024) {
 
-      alert("Please choose an image smaller than 1MB.");
+      alert(
+        "Please choose an image smaller than 1MB."
+      );
 
       return;
     }
@@ -645,9 +1155,11 @@ $("profilePictureInput").addEventListener(
 
         setMyAvatar();
 
-        loadConversations();
+        loadFriends();
 
-        alert("Profile picture updated!");
+        alert(
+          "Profile picture updated!"
+        );
 
       } catch (error) {
 
@@ -661,62 +1173,76 @@ $("profilePictureInput").addEventListener(
   }
 );
 
-/* EDIT PROFILE */
+/* =========================
+   EDIT PROFILE
+========================= */
 
-$("editProfileButton").onclick = async () => {
+$("editProfileButton").onclick =
+  async () => {
 
-  const newName =
-    prompt("Enter your name:", me.name);
+    const newName =
+      prompt(
+        "Enter your name:",
+        me.name
+      );
 
-  if (newName === null) {
-    return;
-  }
-
-  const name =
-    newName.trim();
-
-  if (name.length < 2) {
-
-    alert("Name must be at least 2 characters.");
-
-    return;
-  }
-
-  try {
-
-    const data = await api(
-      "/api/profile",
-      {
-        method: "PATCH",
-        body: JSON.stringify({
-          name,
-          avatar_url: me.avatar_url || ""
-        })
-      }
-    );
-
-    me = data.user;
-
-    $("myName").textContent = me.name;
-
-    setMyAvatar();
-
-    loadConversations();
-
-    if (activeUser) {
-      $("chatName").textContent =
-        activeUser.name;
+    if (newName === null) {
+      return;
     }
 
-    alert("Profile updated!");
+    const name =
+      newName.trim();
 
-  } catch (error) {
+    if (name.length < 2) {
 
-    alert(error.message);
-  }
-};
+      alert(
+        "Name must be at least 2 characters."
+      );
 
-/* LOGOUT */
+      return;
+    }
+
+    try {
+
+      const data = await api(
+        "/api/profile",
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            name,
+            avatar_url:
+              me.avatar_url || ""
+          })
+        }
+      );
+
+      me = data.user;
+
+      $("myName").textContent =
+        me.name;
+
+      setMyAvatar();
+
+      loadFriends();
+
+      if (activeUser) {
+        $("chatName").textContent =
+          activeUser.name;
+      }
+
+      alert(
+        "Profile updated!"
+      );
+
+    } catch (error) {
+
+      alert(error.message);
+    }
+  };
+
+/* =========================
+   LOGOUT
+========================= */
 
 $("logoutButton").onclick = () => {
 
@@ -724,7 +1250,9 @@ $("logoutButton").onclick = () => {
     socket.disconnect();
   }
 
-  localStorage.removeItem("joyboard_token");
+  localStorage.removeItem(
+    "joyboard_token"
+  );
 
   token = null;
   me = null;
@@ -733,6 +1261,8 @@ $("logoutButton").onclick = () => {
   showAuth("login");
 };
 
-/* START */
+/* =========================
+   START
+========================= */
 
 boot();
