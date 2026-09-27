@@ -1154,7 +1154,6 @@ button:disabled {
   color: var(--green-dark);
 }
 
-
 /* =========================================================
    PEOPLE RESPONSIVE
 ========================================================= */
@@ -1189,5 +1188,238 @@ button:disabled {
 
   .person-card {
     max-width: 100%;
+  }
+}
+/* =========================
+   PROFILE MODAL
+========================= */
+
+#profileModal {
+  display: none;
+}
+
+#profileModal.show {
+  display: block;
+}
+
+.profile-modal-overlay {
+  position: fixed;
+  z-index: 9999;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, .45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 15px;
+}
+
+.profile-modal-card {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  background: white;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,.25);
+}
+
+.profile-modal-cover {
+  height: 105px;
+  background: linear-gradient(
+    135deg,
+    var(--green-dark),
+    var(--green)
+  );
+}
+
+.profile-modal-close {
+  position: absolute;
+  right: 12px;
+  top: 10px;
+  z-index: 3;
+  width: 35px;
+  height: 35px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255,255,255,.9);
+  color: #555;
+  font-size: 25px;
+  line-height: 30px;
+}
+
+.profile-modal-photo {
+  width: 90px;
+  height: 90px;
+  margin: -45px auto 0;
+  border-radius: 50%;
+  border: 5px solid white;
+  background: var(--green-light);
+  color: var(--green-dark);
+  display: grid;
+  place-items: center;
+  font-size: 30px;
+  font-weight: 800;
+  overflow: hidden;
+  position: relative;
+  z-index: 2;
+}
+
+.profile-modal-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-modal-content {
+  padding: 12px 20px 24px;
+  text-align: center;
+}
+
+.profile-modal-content h2 {
+  margin: 5px 0;
+  font-size: 23px;
+}
+
+.profile-modal-email {
+  margin: 7px 0;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.profile-online-status {
+  margin: 6px 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.profile-online-dot,
+.profile-offline-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 5px;
+}
+
+.profile-online-dot {
+  background: #2eae65;
+}
+
+.profile-offline-dot {
+  background: #a9b3b0;
+}
+
+.profile-information {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 18px 0;
+}
+
+.profile-info-box {
+  background: #f4f7f6;
+  border-radius: 12px;
+  padding: 12px 8px;
+}
+
+.profile-info-box strong {
+  display: block;
+  color: var(--green-dark);
+  font-size: 16px;
+}
+
+.profile-info-box span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.profile-modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profile-main-button,
+.profile-secondary-button,
+.profile-remove-button {
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  padding: 12px;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.profile-main-button {
+  background: var(--green);
+  color: white;
+}
+
+.profile-main-button:hover {
+  background: var(--green-dark);
+}
+
+.profile-secondary-button {
+  background: #eef3f1;
+  color: var(--green-dark);
+}
+
+.profile-remove-button {
+  background: #fff0f0;
+  color: var(--danger);
+}
+
+.profile-main-button:disabled,
+.profile-secondary-button:disabled {
+  opacity: .6;
+}
+
+/* PERSON INITIAL */
+.person-initial {
+  display: grid;
+  place-items: center;
+  color: var(--green-dark);
+  font-weight: 800;
+  font-size: 22px;
+}
+
+/* SMALL PHONES */
+@media (max-width: 420px) {
+
+  .profile-modal-overlay {
+    padding: 8px;
+  }
+
+  .profile-modal-card {
+    max-width: 100%;
+    border-radius: 15px;
+  }
+
+  .profile-modal-cover {
+    height: 90px;
+  }
+
+  .profile-modal-photo {
+    width: 78px;
+    height: 78px;
+    margin-top: -39px;
+  }
+
+  .profile-modal-content {
+    padding: 10px 15px 18px;
+  }
+
+  .profile-modal-content h2 {
+    font-size: 20px;
+  }
+
+  .profile-information {
+    margin: 12px 0;
   }
 }
